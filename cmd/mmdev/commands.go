@@ -8,6 +8,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/mattermost/mmdev/internal/node"
+	"github.com/mattermost/mmdev/model"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -55,19 +56,26 @@ func mobileCmdF(c *cobra.Command, args []string) error {
 	// fmt.Fprintf(c.OutOrStdout(), "%s: successfully pulled from %s\n", repo.Name, remote)
 	// }
 
-	nodeError := node.InstallNodeIfNeeded(cfg.NodeJS.MinVersion)
-	if nodeError != nil {
-		result = multierror.Append(result, nodeError)
+	nvmError := node.InstallNVMIfNeeded(cfg.NVM)
+	if nvmError != nil {
+		result = multierror.Append(result, nvmError)
+	}
+
+	if nvmError == nil {
+		nodeError := node.InstallNodeIfNeeded(cfg.NodeJS)
+		if nodeError != nil {
+			result = multierror.Append(result, nodeError)
+		}
 	}
 
 	return result.ErrorOrNil()
 
 }
 
-func resolveConfig(w io.Writer) (*Config, error) {
+func resolveConfig(w io.Writer) (*model.Config, error) {
 	if !viper.IsSet("config") {
 		fmt.Fprintln(w, "no config detected, continuing with defaults...")
-		return DefaultConfig(), nil
+		return model.DefaultConfig(), nil
 	}
 
 	fileContents, err := os.ReadFile(viper.GetString("config"))
@@ -75,7 +83,7 @@ func resolveConfig(w io.Writer) (*Config, error) {
 		return nil, fmt.Errorf("there was a problem reading the config file: %w", err)
 	}
 
-	var cfg Config
+	var cfg model.Config
 	if err := json.Unmarshal(fileContents, &cfg); err != nil {
 		return nil, fmt.Errorf("there was a problem parsing the config file: %w", err)
 	}
